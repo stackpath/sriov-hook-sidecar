@@ -1,0 +1,48 @@
+ignored = [
+    "github.com/go-kit/kit/examples",
+    "github.com/go-kit/kit/log/levels",
+    "github.com/go-kit/kit/metrics/influxdb",
+    "github.com/go-kit/kit/service",
+    ]
+
+[prune]
+  go-tests = true
+
+[[override]]
+  name = "kubevirt.io/kubevirt"
+  source = "github.com/stackpath/kubevirt"
+  branch = "mega-merge"
+
+[[override]]
+   name = "kubevirt.io/containerized-data-importer"
+   source = "https://github.com/kubevirt/containerized-data-importer"
+   revision="254749a63d335a4ec1ef919a971cab0b68cf4980"
+
+[[override]]
+  name = "gopkg.in/fsnotify.v1"
+  source = "https://github.com/fsnotify/fsnotify.git"
+  version="v1.4.7"
+
+[[override]]
+  name = "k8s.io/client-go"
+  version = "kubernetes-1.11.2"
+
+[[override]]
+  name = "k8s.io/apimachinery"
+  version = "kubernetes-1.11.2"
+
+[[override]]
+  name = "k8s.io/kube-aggregator"
+  version = "kubernetes-1.11.2"
+
+[[override]]
+  name = "k8s.io/apiextensions-apiserver"
+  version = "kubernetes-1.11.2"
+
+[[override]]
+  name = "github.com/go-kit/kit"
+  revision = "fe6fe28ba0d54b39f27e79cddba4911b7e4fffc7"
+
+[[override]]
+  name = "github.com/k8snetworkplumbingwg/network-attachment-definition-client"
+  revision = "release-1.11"

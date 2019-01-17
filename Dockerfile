@@ -12,13 +12,19 @@
 #
 # Copyright 2019 StackPath, LLC
 #
+#
+FROM golang as builder
+COPY . /go/src/sriov-hook-sidecar
+WORKDIR /go/src/sriov-hook-sidecar
+RUN go build &&\
+    mkdir -p /app/var/run/kubevirt-hooks /app/lib/ /app/lib/x86_64-linux-gnu /app/lib64 &&\
+    cp /go/src/sriov-hook-sidecar/sriov-hook-sidecar /app &&\
+    cp /lib/x86_64-linux-gnu/libpthread.so.0 /app/lib/x86_64-linux-gnu/ &&\
+    cp /lib/x86_64-linux-gnu/libc.so.6 /app/lib/x86_64-linux-gnu/ &&\
+    cp /lib64/ld-linux-x86-64.so.2 /app/lib64/
 
-FROM fedora:28
 
+FROM scratch
 LABEL maintainer="StackPath, LLC <greg.bock@stackpath.com>"
-
-RUN dnf -y install iproute
-
-COPY cloudinit-hook-sidecar /cloudinit-hook-sidecar
-
-ENTRYPOINT [ "/cloudinit-hook-sidecar" ]
+COPY --from=builder /app /
+ENTRYPOINT [ "/sriov-hook-sidecar" ]

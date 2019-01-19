@@ -34,15 +34,15 @@
   version = "v1.1.1"
 
 [[projects]]
-  digest = "1:0ffd93121f3971aea43f6a26b3eaaa64c8af20fb0ff0731087d8dab7164af5a8"
+  digest = "1:77b39b37b35255582ec2c661b9c49c46356bf9fd5156442b400ef0608c358023"
   name = "github.com/emicklei/go-restful"
   packages = [
     ".",
     "log",
   ]
   pruneopts = "T"
-  revision = "3eb9738c1697594ea6e71a7156a9bb32ed216cf0"
-  version = "v2.8.0"
+  revision = "e37671aced663c8d3a395bd301857e26dcf4340c"
+  version = "v2.8.1"
 
 [[projects]]
   digest = "1:2cd7915ab26ede7d95b8749e6b1f933f1c6d5398030684e6505940a10f31cfda"
@@ -398,14 +398,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:68b29b6e65ccbfa41a76d56ab41af451e3f9df839023c616da83b776e5e9a0a0"
+  digest = "1:1748ccad64c8a1fc602f507f9c68520c8ece1cff31be9ef810c41b3715d2c8f4"
   name = "golang.org/x/sys"
   packages = [
     "unix",
     "windows",
   ]
   pruneopts = "T"
-  revision = "a457fd036447854c0c02e89ea439481bdcf941a2"
+  revision = "11f53e03133963fb11ae0588e08b5e0b85be8be5"
 
 [[projects]]
   digest = "1:6164911cb5e94e8d8d5131d646613ff82c14f5a8ce869de2f6d80d9889df8c5a"
@@ -694,7 +694,7 @@
 
 [[projects]]
   branch = "mega-merge"
-  digest = "1:6b821d886486cbeeec5e15f23acc5427716a7b219ba3d772bd783ba543678f2b"
+  digest = "1:8d7c87cac7bb34ef9ae3b5a607444fc2cc9f9b2b04756a8ed8d0add94ad6662a"
   name = "kubevirt.io/kubevirt"
   packages = [
     "pkg/api/v1",
@@ -720,7 +720,7 @@
     "pkg/virt-launcher/virtwrap/network/dhcp",
   ]
   pruneopts = "T"
-  revision = "a245508cdd797a92eeef28ddbbc67f7a0d2bad43"
+  revision = "0364d019283267b657fe0f57c93e5698500c402c"
   source = "github.com/stackpath/kubevirt"
 
 [solve-meta]

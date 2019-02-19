@@ -46,7 +46,11 @@ import (
 )
 
 const (
-	defaultIOThread = uint(1)
+	CPUModeHostPassthrough = "host-passthrough"
+	CPUModeHostModel       = "host-model"
+	defaultIOThread        = uint(1)
+	EFIPath                = "/usr/share/OVMF/OVMF_CODE.fd"
+	EFIVarsPath            = "/usr/share/OVMF/OVMF_VARS.fd"
 )
 
 type ConverterContext struct {
@@ -400,6 +404,25 @@ func Convert_v1_Rng_To_api_Rng(source *v1.Rng, rng *Rng, _ *ConverterContext) er
 	return nil
 }
 
+func Convert_v1_Input_To_api_InputDevice(input *v1.Input, inputDevice *Input, _ *ConverterContext) error {
+	if input.Bus != "virtio" && input.Bus != "usb" && input.Bus != "" {
+		return fmt.Errorf("input contains unsupported bus %s", input.Bus)
+	}
+
+	if input.Bus != "virtio" && input.Bus != "usb" {
+		input.Bus = "usb"
+	}
+
+	if input.Type != "tablet" {
+		return fmt.Errorf("input contains unsupported type %s", input.Type)
+	}
+
+	inputDevice.Bus = input.Bus
+	inputDevice.Type = input.Type
+	inputDevice.Alias = &Alias{Name: input.Name}
+	return nil
+}
+
 func Convert_v1_Clock_To_api_Clock(source *v1.Clock, clock *Clock, c *ConverterContext) error {
 	if source.UTC != nil {
 		clock.Offset = "utc"
@@ -456,9 +479,27 @@ func convertFeatureState(source *v1.FeatureState) *FeatureState {
 	return nil
 }
 
+//isUSBDevicePresent checks if exists device with usb bus in vmi
+func isUSBDevicePresent(vmi *v1.VirtualMachineInstance) bool {
+	usbDeviceExists := false
+	for _, input := range vmi.Spec.Domain.Devices.Inputs {
+		if input.Bus == "usb" {
+			usbDeviceExists = true
+			return usbDeviceExists
+		}
+	}
+
+	return usbDeviceExists
+}
+
 func Convert_v1_Features_To_api_Features(source *v1.Features, features *Features, c *ConverterContext) error {
 	if source.ACPI.Enabled == nil || *source.ACPI.Enabled {
 		features.ACPI = &FeatureEnabled{}
+	}
+	if source.SMM != nil {
+		if source.SMM.Enabled == nil || *source.SMM.Enabled {
+			features.SMM = &FeatureEnabled{}
+		}
 	}
 	if source.APIC != nil {
 		if source.APIC.Enabled == nil || *source.APIC.Enabled {
@@ -593,6 +634,25 @@ func Convert_v1_VirtualMachine_To_api_Domain(vmi *v1.VirtualMachineInstance, dom
 				Name:  "uuid",
 				Value: string(vmi.Spec.Domain.Firmware.UUID),
 			},
+		}
+
+		if vmi.Spec.Domain.Firmware.Bootloader != nil && vmi.Spec.Domain.Firmware.Bootloader.EFI != nil {
+
+			domain.Spec.OS.BootLoader = &Loader{
+				Path:     EFIPath,
+				ReadOnly: "yes",
+				Secure:   "no",
+				Type:     "pflash",
+			}
+
+			domain.Spec.OS.NVRam = &NVRam{
+				NVRam:    filepath.Join("/tmp", domain.Spec.Name),
+				Template: EFIVarsPath,
+			}
+		}
+
+		if len(vmi.Spec.Domain.Firmware.Serial) > 0 {
+			domain.Spec.SysInfo.System = append(domain.Spec.SysInfo.System, Entry{Name: "serial", Value: string(vmi.Spec.Domain.Firmware.Serial)})
 		}
 	}
 
@@ -743,6 +803,30 @@ func Convert_v1_VirtualMachine_To_api_Domain(vmi *v1.VirtualMachineInstance, dom
 		domain.Spec.Devices.Rng = newRng
 	}
 
+	//usb controller is turned on, only when user specify input device with usb bus,
+	//otherwise it is turned off
+	if usbDeviceExists := isUSBDevicePresent(vmi); !usbDeviceExists {
+		// disable usb controller
+		domain.Spec.Devices.Controllers = append(domain.Spec.Devices.Controllers, Controller{
+			Type:  "usb",
+			Index: "0",
+			Model: "none",
+		})
+	}
+
+	if vmi.Spec.Domain.Devices.Inputs != nil {
+		inputDevices := make([]Input, 0)
+		for _, input := range vmi.Spec.Domain.Devices.Inputs {
+			inputDevice := Input{}
+			err := Convert_v1_Input_To_api_InputDevice(&input, &inputDevice, c)
+			inputDevices = append(inputDevices, inputDevice)
+			if err != nil {
+				return err
+			}
+		}
+		domain.Spec.Devices.Inputs = inputDevices
+	}
+
 	if vmi.Spec.Domain.Clock != nil {
 		clock := vmi.Spec.Domain.Clock
 		newClock := &Clock{}
@@ -873,20 +957,13 @@ func Convert_v1_VirtualMachine_To_api_Domain(vmi *v1.VirtualMachineInstance, dom
 
 	networks := map[string]*v1.Network{}
 	cniNetworks := map[string]int{}
-	multusNetworkIndex := 1
 	for _, network := range vmi.Spec.Networks {
 		numberOfSources := 0
 		if network.Pod != nil {
 			numberOfSources++
 		}
 		if network.Multus != nil {
-			if network.Multus.Default {
-				// default network is eth0
-				cniNetworks[network.Name] = 0
-			} else {
-				cniNetworks[network.Name] = multusNetworkIndex
-				multusNetworkIndex++
-			}
+			cniNetworks[network.Name] = len(cniNetworks) + 1
 			numberOfSources++
 		}
 		if network.Genie != nil {
@@ -978,11 +1055,7 @@ func Convert_v1_VirtualMachine_To_api_Domain(vmi *v1.VirtualMachineInstance, dom
 					prefix := ""
 					// no error check, we assume that CNI type was set correctly
 					if net.Multus != nil {
-						if net.Multus.Default {
-							prefix = "eth"
-						} else {
-							prefix = "net"
-						}
+						prefix = "net"
 					} else if net.Genie != nil {
 						prefix = "eth"
 					}

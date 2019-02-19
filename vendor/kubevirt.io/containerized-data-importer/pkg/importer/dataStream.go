@@ -37,10 +37,11 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/golang/glog"
-	"github.com/minio/minio-go"
+	minio "github.com/minio/minio-go"
 	"github.com/pkg/errors"
 	"github.com/ulikunitz/xz"
 
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/image"
@@ -93,6 +94,10 @@ type DataStreamOptions struct {
 	ContentType string
 	// ImageSize is the size we want the resulting image to be.
 	ImageSize string
+	// Available space is the available space before downloading the image
+	AvailableSpace int64
+	// CertDir is a directory containing tls certs
+	CertDir string
 }
 
 const (
@@ -131,8 +136,10 @@ func newDataStreamFromStream(stream io.ReadCloser) (*DataStream, error) {
 		"",
 		"",
 		controller.SourceHTTP,
-		controller.ContentTypeKubevirt,
+		string(cdiv1.DataVolumeKubeVirt),
 		"", // Blank means don't resize
+		util.GetAvailableSpace(common.ImporterVolumePath),
+		"",
 	}, stream)
 }
 
@@ -293,14 +300,14 @@ func CopyData(dso *DataStreamOptions) error {
 	switch dso.Source {
 	case controller.SourceRegistry:
 		glog.V(1).Infof("using skopeo to copy from registry")
-		return image.CopyRegistryImage(dso.Endpoint, dso.Dest, dso.AccessKey, dso.SecKey)
+		return image.CopyRegistryImage(dso.Endpoint, dso.Dest, common.DiskImageName, dso.AccessKey, dso.SecKey, dso.CertDir)
 	default:
 		ds, err := NewDataStream(dso)
 		if err != nil {
 			return errors.Wrap(err, "unable to create data stream")
 		}
 		defer ds.Close()
-		if dso.ContentType == controller.ContentTypeArchive {
+		if dso.ContentType == string(cdiv1.DataVolumeArchive) {
 			if err := util.UnArchiveTar(ds.topReader(), dso.Dest); err != nil {
 				return errors.Wrap(err, "unable to untar files from endpoint")
 			}
@@ -328,7 +335,7 @@ func SaveStream(stream io.ReadCloser, dest string) (int64, error) {
 // ResizeImage resizes the images to match the requested size. Sometimes provisioners misbehave and the available space
 // is not the same as the requested space. For those situations we compare the available space to the requested space and
 // use the smallest of the two values.
-func ResizeImage(dest, imageSize string) error {
+func ResizeImage(dest, imageSize string, totalTargetSpace int64) error {
 	info, err := qemuOperations.Info(dest)
 	if err != nil {
 		return err
@@ -336,7 +343,7 @@ func ResizeImage(dest, imageSize string) error {
 	if imageSize != "" {
 		currentImageSizeQuantity := resource.NewScaledQuantity(info.VirtualSize, 0)
 		newImageSizeQuantity := resource.MustParse(imageSize)
-		minSizeQuantity := util.MinQuantity(resource.NewScaledQuantity(util.GetAvailableSpace(dest), 0), &newImageSizeQuantity)
+		minSizeQuantity := util.MinQuantity(resource.NewScaledQuantity(totalTargetSpace, 0), &newImageSizeQuantity)
 		if minSizeQuantity.Cmp(newImageSizeQuantity) != 0 {
 			// Available dest space is smaller than the size we want to resize to
 			glog.Warningf("Available space less than requested size, resizing image to available space %s.\n", minSizeQuantity.String())
@@ -425,7 +432,7 @@ func (d *DataStream) constructReaders(stream io.ReadCloser) error {
 		}
 	}
 
-	if d.ContentType == controller.ContentTypeArchive && !isTarFile {
+	if d.ContentType == string(cdiv1.DataVolumeArchive) && !isTarFile {
 		return errors.Errorf("cannot process a non tar file as an archive")
 	}
 
@@ -533,7 +540,7 @@ func (d *DataStream) xzReader() (io.Reader, int64, error) {
 // Assumes a single file was archived.
 // Note: the size stored in the header is used rather than raw metadata.
 func (d *DataStream) tarReader() (io.Reader, int64, error) {
-	if d.ContentType == controller.ContentTypeArchive {
+	if d.ContentType == string(cdiv1.DataVolumeArchive) {
 		return d.mulFileTarReader()
 	}
 	tr := tar.NewReader(d.topReader())
@@ -681,11 +688,23 @@ func (d *DataStream) isHTTPQcow2() bool {
 		len(d.Readers) == 2
 }
 
+func (d *DataStream) calculateTargetSize(dest string) int64 {
+	targetQuantity := resource.NewScaledQuantity(util.GetAvailableSpace(filepath.Dir(dest)), 0)
+	if d.ImageSize != "" {
+		newImageSizeQuantity := resource.MustParse(d.ImageSize)
+		minQuantity := util.MinQuantity(targetQuantity, &newImageSizeQuantity)
+		targetQuantity = &minQuantity
+	}
+	targetSize, _ := targetQuantity.AsInt64()
+	return targetSize
+}
+
 // Copy endpoint to dest based on passed-in reader.
 func (d *DataStream) copy(dest string) error {
+	targetSize := d.calculateTargetSize(dest)
 	if d.isHTTPQcow2() {
 		glog.V(3).Infoln("Validating qcow2 file")
-		err := qemuOperations.Validate(d.url.String(), "qcow2")
+		err := qemuOperations.Validate(d.url.String(), "qcow2", targetSize)
 		if err != nil {
 			return errors.Wrap(err, "Streaming image validation failed")
 		}
@@ -696,18 +715,18 @@ func (d *DataStream) copy(dest string) error {
 			return errors.Wrap(err, "Streaming qcow2 to raw conversion failed")
 		}
 		if d.ImageSize != "" {
-			err = ResizeImage(dest, d.ImageSize)
-		}
-		if err != nil {
-			return errors.Wrap(err, "Resize of image failed")
+			err := ResizeImage(dest, d.ImageSize, d.AvailableSpace)
+			if err != nil {
+				return errors.Wrap(err, "Resize of image failed")
+			}
 		}
 		return nil
 	}
-	return copy(d.topReader(), dest, d.qemu, d.ImageSize)
+	return copy(d.topReader(), dest, d.qemu, d.ImageSize, targetSize, d.AvailableSpace)
 }
 
 // Copy the file using its Reader (r) to the passed-in destination (`out`).
-func copy(r io.Reader, out string, qemu bool, imageSize string) error {
+func copy(r io.Reader, out string, qemu bool, imageSize string, targetSize, availableSpace int64) error {
 	out = filepath.Clean(out)
 	glog.V(2).Infof("copying image file to %q", out)
 	dest := out
@@ -725,7 +744,7 @@ func copy(r io.Reader, out string, qemu bool, imageSize string) error {
 		return errors.WithMessage(err, fmt.Sprintf("unable to stream data to file %q", dest))
 	}
 	if qemu {
-		err = qemuOperations.Validate(dest, "qcow2")
+		err = qemuOperations.Validate(dest, "qcow2", targetSize)
 		if err != nil {
 			return errors.Wrap(err, "Local image validation failed")
 		}
@@ -750,7 +769,7 @@ func copy(r io.Reader, out string, qemu bool, imageSize string) error {
 		dest = out
 	}
 	if imageSize != "" {
-		err = ResizeImage(dest, imageSize)
+		err = ResizeImage(dest, imageSize, availableSpace)
 	}
 	if err != nil {
 		return errors.Wrap(err, "Resize of image failed")

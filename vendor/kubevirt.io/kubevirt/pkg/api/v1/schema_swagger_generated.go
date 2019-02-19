@@ -54,9 +54,29 @@ func (DomainSpec) SwaggerDoc() map[string]string {
 		"machine":         "Machine type.\n+optional",
 		"firmware":        "Firmware.\n+optional",
 		"clock":           "Clock sets the clock and timers of the vmi.\n+optional",
-		"features":        "Features like acpi, apic, hyperv.\n+optional",
+		"features":        "Features like acpi, apic, hyperv, smm.\n+optional",
 		"devices":         "Devices allows adding disks, network interfaces, ...",
 		"ioThreadsPolicy": "Controls whether or not disks will share IOThreads.\nOmitting IOThreadsPolicy disables use of IOThreads.\nOne of: shared, auto\n+optional",
+	}
+}
+
+func (Bootloader) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":     "Represents the firmware blob used to assist in the domain creation process.\nUsed for setting the QEMU BIOS file path for the libvirt domain.",
+		"bios": "If set (default), BIOS will be used.\n+optional",
+		"efi":  "If set, EFI will be used instead of BIOS.\n+optional",
+	}
+}
+
+func (BIOS) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "If set (default), BIOS will be used.",
+	}
+}
+
+func (EFI) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "If set, EFI will be used instead of BIOS.",
 	}
 }
 
@@ -102,7 +122,9 @@ func (Machine) SwaggerDoc() map[string]string {
 
 func (Firmware) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"uuid": "UUID reported by the vmi bios.\nDefaults to a random generated uid.",
+		"uuid":       "UUID reported by the vmi bios.\nDefaults to a random generated uid.",
+		"bootloader": "Settings to control the bootloader that is used.\n+optional",
+		"serial":     "The system-serial-number in SMBIOS",
 	}
 }
 
@@ -111,11 +133,20 @@ func (Devices) SwaggerDoc() map[string]string {
 		"disks":                      "Disks describes disks, cdroms, floppy and luns which are connected to the vmi.",
 		"watchdog":                   "Watchdog describes a watchdog device which can be added to the vmi.",
 		"interfaces":                 "Interfaces describe network interfaces which are added to the vmi.",
+		"inputs":                     "Inputs describe input devices",
 		"autoattachPodInterface":     "Whether to attach a pod network interface. Defaults to true.",
 		"autoattachGraphicsDevice":   "Whether to attach the default graphics device or not.\nVNC will not be available if set to false. Defaults to true.",
 		"rng":                        "Whether to have random number generator from host\n+optional",
 		"blockMultiQueue":            "Whether or not to enable virtio multi-queue for block devices\n+optional",
 		"networkInterfaceMultiqueue": "If specified, virtual network interfaces configured with a virtio bus will also enable the vhost multiqueue feature\n+optional",
+	}
+}
+
+func (Input) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"bus":  "Bus indicates the bus of input device to emulate.\nSupported values: virtio, usb.",
+		"type": "Type indicated the type of input device.\nSupported values: tablet.",
+		"name": "Name is the device name",
 	}
 }
 
@@ -292,6 +323,7 @@ func (Features) SwaggerDoc() map[string]string {
 		"acpi":   "ACPI enables/disables ACPI insidejsondata guest.\nDefaults to enabled.\n+optional",
 		"apic":   "Defaults to the machine type setting.\n+optional",
 		"hyperv": "Defaults to the machine type setting.\n+optional",
+		"smm":    "SMM enables/disables System Management Mode.\nTSEG not yet implemented.\n+optional",
 	}
 }
 
@@ -377,6 +409,15 @@ func (DHCPOptions) SwaggerDoc() map[string]string {
 		"bootFileName":   "If specified will pass option 67 to interface's DHCP server\n+optional",
 		"tftpServerName": "If specified will pass option 66 to interface's DHCP server\n+optional",
 		"ntpServers":     "If specified will pass the configured NTP server to the VM via DHCP option 042.\n+optional",
+		"privateOptions": "If specified will pass extra DHCP options for private use, range: 224-254\n+optional",
+	}
+}
+
+func (DHCPPrivateOptions) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":       "DHCPExtraOptions defines Extra DHCP options for a VM.",
+		"option": "Option is an Integer value from 224-254\nRequired.",
+		"value":  "Value is a String value for the Option provided\nRequired.",
 	}
 }
 
@@ -441,6 +482,5 @@ func (CniNetwork) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"":            "Represents the cni network.",
 		"networkName": "References to a NetworkAttachmentDefinition CRD object. Format:\n<networkName>, <namespace>/<networkName>. If namespace is not\nspecified, VMI namespace is assumed.\nIn case of genie, it references the CNI plugin name.",
-		"default":     "For Multus CNI select the default network and add it to the\nmultus-cni.io/default-network annotation. Ignored for all\nother CNIs.",
 	}
 }

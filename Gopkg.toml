@@ -10,34 +10,34 @@ ignored = [
 
 [[override]]
   name = "kubevirt.io/kubevirt"
-  source = "github.com/stackpath/kubevirt"
-  branch = "mega-merge"
+  source = "github.com/kubevirt/kubevirt"
+  branch = "master"
 
 [[override]]
    name = "kubevirt.io/containerized-data-importer"
    source = "https://github.com/kubevirt/containerized-data-importer"
-   revision="254749a63d335a4ec1ef919a971cab0b68cf4980"
+   version="1.5.1"
 
 [[override]]
   name = "gopkg.in/fsnotify.v1"
   source = "https://github.com/fsnotify/fsnotify.git"
-  version="v1.4.7"
+  version="^1.4.2"
 
 [[override]]
   name = "k8s.io/client-go"
-  version = "kubernetes-1.11.2"
+  version = "kubernetes-1.12.4"
 
 [[override]]
   name = "k8s.io/apimachinery"
-  version = "kubernetes-1.11.2"
+  version = "kubernetes-1.12.4"
 
 [[override]]
   name = "k8s.io/kube-aggregator"
-  version = "kubernetes-1.11.2"
+  version = "kubernetes-1.12.4"
 
 [[override]]
   name = "k8s.io/apiextensions-apiserver"
-  version = "kubernetes-1.11.2"
+  version = "kubernetes-1.12.4"
 
 [[override]]
   name = "github.com/go-kit/kit"
@@ -45,4 +45,4 @@ ignored = [
 
 [[override]]
   name = "github.com/k8snetworkplumbingwg/network-attachment-definition-client"
-  revision = "release-1.11"
+  revision = "release-1.12"

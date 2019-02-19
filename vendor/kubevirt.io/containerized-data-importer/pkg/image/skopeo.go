@@ -18,7 +18,6 @@ package image
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -36,7 +35,7 @@ const whFilePrefix string = ".wh."
 
 // SkopeoOperations defines the interface for executing skopeo subprocesses
 type SkopeoOperations interface {
-	CopyImage(string, string, string, string) error
+	CopyImage(string, string, string, string, string) error
 }
 
 type skopeoOperations struct{}
@@ -63,14 +62,17 @@ func NewSkopeoOperations() SkopeoOperations {
 	return &skopeoOperations{}
 }
 
-func (o *skopeoOperations) CopyImage(url, dest, accessKey, secKey string) error {
+func (o *skopeoOperations) CopyImage(url, dest, accessKey, secKey, certDir string) error {
 	var err error
-	if len(accessKey) > 0 && len(secKey) > 0 {
-		var creds = "--src-creds=" + accessKey + ":" + secKey
-		_, err = skopeoExecFunction(processLimits, nil, "skopeo", "copy", url, dest, creds)
-	} else {
-		_, err = skopeoExecFunction(processLimits, nil, "skopeo", "copy", url, dest, "--src-tls-verify=false")
+	args := []string{"copy", url, dest}
+	if accessKey != "" && secKey != "" {
+		creds := "--src-creds=" + accessKey + ":" + secKey
+		args = append(args, creds)
 	}
+	if certDir != "" {
+		args = append(args, "--src-cert-dir="+certDir)
+	}
+	_, err = skopeoExecFunction(processLimits, nil, "skopeo", args...)
 	if err != nil {
 		return errors.Wrap(err, "could not copy image")
 	}
@@ -78,25 +80,32 @@ func (o *skopeoOperations) CopyImage(url, dest, accessKey, secKey string) error 
 }
 
 // CopyRegistryImage download image from registry with skopeo
-func CopyRegistryImage(url, dest, accessKey, secKey string) error {
+func CopyRegistryImage(url, dest, destFile, accessKey, secKey, certDir string) error {
 	skopeoDest := "dir:" + dest + dataTmpDir
-	err := SkopeoInterface.CopyImage(url, skopeoDest, accessKey, secKey)
+	err := SkopeoInterface.CopyImage(url, skopeoDest, accessKey, secKey, certDir)
 	if err != nil {
 		os.RemoveAll(dest + dataTmpDir)
 		return errors.Wrap(err, "Failed to download from registry")
 	}
-	err = extractImageLayers(dest)
+	err = extractImageLayers(dest, destFile)
 	if err != nil {
 		return errors.Wrap(err, "Failed to extract image layers")
 	}
 
+	//If a specifc file was requested verify it exists, if not - fail
+	if len(destFile) > 0 {
+		if _, err = os.Stat(filepath.Join(dest, destFile)); err != nil {
+			glog.Errorf("Failed to find VM disk image file in the container image")
+			err = errors.New("Failed to find VM disk image file in the container image")
+		}
+	}
 	// Clean temp folder
 	os.RemoveAll(dest + dataTmpDir)
 
 	return err
 }
 
-var extractImageLayers = func(dest string) error {
+var extractImageLayers = func(dest string, arg ...string) error {
 	glog.V(1).Infof("extracting image layers to %q\n", dest)
 	// Parse manifest file
 	manifest, err := getImageManifest(dest + dataTmpDir)
@@ -119,11 +128,18 @@ var extractImageLayers = func(dest string) error {
 			layerID = m.Digest
 		}
 		layer := strings.TrimPrefix(layerID, "sha256:")
-		filePath := fmt.Sprintf("%s%s/%s", dest, dataTmpDir, layer)
+		filePath := filepath.Join(dest, dataTmpDir, layer)
 
-		if err := util.UnArchiveLocalTar(filePath, dest, "z"); err != nil {
-			return errors.Wrap(err, "could not extract layer tar")
+		//prepend z option to the beggining of untar arguments
+		args := append([]string{"z"}, arg...)
+
+		if err := util.UnArchiveLocalTar(filePath, dest, args...); err != nil {
+			//ignore errors if specific file extract was requested - we validate whether the file was extracted at the end of the sequence
+			if len(arg) == 0 {
+				return errors.Wrap(err, "could not extract layer tar")
+			}
 		}
+
 		err = cleanWhiteoutFiles(dest)
 	}
 	return err
@@ -138,7 +154,10 @@ func getImageManifest(dest string) (*manifest, error) {
 
 	// Parse json file
 	var manifestObj manifest
-	json.Unmarshal(manifestFile, &manifestObj)
+	err = json.Unmarshal(manifestFile, &manifestObj)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not read manifest file")
+	}
 	return &manifestObj, nil
 }
 

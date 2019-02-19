@@ -2,9 +2,10 @@ package controller
 
 import (
 	"fmt"
+
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
@@ -21,6 +22,8 @@ const (
 	AnnEndpoint = AnnAPIGroup + "/storage.import.endpoint"
 	// AnnSecret provides a const for our PVC secretName annotation
 	AnnSecret = AnnAPIGroup + "/storage.import.secretName"
+	// AnnCertConfigMap is the name of a configmap containing tls certs
+	AnnCertConfigMap = AnnAPIGroup + "/storage.import.certConfigMap"
 	// AnnContentType provides a const for the PVC content-type
 	AnnContentType = AnnAPIGroup + "/storage.contentType"
 	// AnnImportPod provides a const for our PVC importPodName annotation
@@ -35,7 +38,7 @@ type ImportController struct {
 }
 
 type importPodEnvVar struct {
-	ep, secretName, source, contentType, imageSize string
+	ep, secretName, source, contentType, imageSize, certConfigMap string
 }
 
 // NewImportController sets up an Import Controller, and returns a pointer to
@@ -101,7 +104,7 @@ func (ic *ImportController) processPvcItem(pvc *v1.PersistentVolumeClaim) error 
 		needsSync = false
 	}
 	if pod == nil && needsSync {
-		podEnvVar, err := createImportEnvVar(pvc, ic)
+		podEnvVar, err := createImportEnvVar(ic.clientset, pvc)
 		if err != nil {
 			return err
 		}
@@ -124,7 +127,7 @@ func (ic *ImportController) processPvcItem(pvc *v1.PersistentVolumeClaim) error 
 		//this is for a case where the import container is failing and the restartPolicy is OnFailure. In such case
 		//the pod phase is "Running" although the container state is Waiting. When the container recovers, its state
 		//changes back to "Running".
-		if pod.Status.ContainerStatuses != nil && pod.Status.ContainerStatuses[0].State.Waiting != nil {
+		if pod.Status.Phase != v1.PodPending && pod.Status.ContainerStatuses != nil && pod.Status.ContainerStatuses[0].State.Waiting != nil {
 			anno[AnnPodPhase] = string(v1.PodFailed)
 		}
 

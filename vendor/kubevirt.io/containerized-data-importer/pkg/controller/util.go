@@ -3,9 +3,12 @@ package controller
 import (
 	"crypto/x509"
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -14,15 +17,17 @@ import (
 	"k8s.io/client-go/kubernetes"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/util/cert/triple"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/keys"
-	"strings"
-	"time"
 )
 
 const (
 	// DataVolName provides a const to use for creating volumes in pod specs
 	DataVolName = "cdi-data-vol"
+
+	// CertVolName is the name of the volumecontaining certs
+	CertVolName = "cdi-cert-vol"
 
 	// ImagePathName provides a const to use for creating volumes in pod specs
 	ImagePathName  = "image-path"
@@ -38,11 +43,6 @@ const (
 	SourceNone = "none"
 	// SourceRegistry is the source type of Registry
 	SourceRegistry = "registry"
-
-	// ContentTypeKubevirt is the content-type of the import, defaults to kubevirt
-	ContentTypeKubevirt = "kubevirt"
-	// ContentTypeArchive is the content-type to specify if wanting to extract an archive
-	ContentTypeArchive = "archive"
 )
 
 type podDeleteRequest struct {
@@ -115,12 +115,12 @@ func getContentType(pvc *v1.PersistentVolumeClaim) string {
 	}
 	switch contentType {
 	case
-		ContentTypeKubevirt,
-		ContentTypeArchive:
+		string(cdiv1.DataVolumeKubeVirt),
+		string(cdiv1.DataVolumeArchive):
 		glog.V(2).Infof("pvc content type annotation found for pvc \"%s/%s\", value %s\n", pvc.Namespace, pvc.Name, contentType)
 	default:
 		glog.V(2).Infof("No content type annotation found for pvc \"%s/%s\", default to kubevirt\n", pvc.Namespace, pvc.Name)
-		contentType = ContentTypeKubevirt
+		contentType = string(cdiv1.DataVolumeKubeVirt)
 	}
 	return contentType
 }
@@ -317,6 +317,28 @@ func MakeImporterPodSpec(image, verbose, pullPolicy string, podEnvVar *importPod
 		ownerUID = pvc.OwnerReferences[0].UID
 	}
 	pod.Spec.Containers[0].Env = makeEnv(podEnvVar, ownerUID)
+
+	if podEnvVar.certConfigMap != "" {
+		vm := v1.VolumeMount{
+			Name:      CertVolName,
+			MountPath: common.ImporterCertDir,
+		}
+
+		vol := v1.Volume{
+			Name: CertVolName,
+			VolumeSource: v1.VolumeSource{
+				ConfigMap: &v1.ConfigMapVolumeSource{
+					LocalObjectReference: v1.LocalObjectReference{
+						Name: podEnvVar.certConfigMap,
+					},
+				},
+			},
+		}
+
+		pod.Spec.Containers[0].VolumeMounts = append(pod.Spec.Containers[0].VolumeMounts, vm)
+		pod.Spec.Volumes = append(pod.Spec.Volumes, vol)
+	}
+
 	return pod
 }
 
@@ -365,6 +387,12 @@ func makeEnv(podEnvVar *importPodEnvVar, uid types.UID) []v1.EnvVar {
 					Key: common.KeySecret,
 				},
 			},
+		})
+	}
+	if podEnvVar.certConfigMap != "" {
+		env = append(env, v1.EnvVar{
+			Name:  common.ImporterCertDirVar,
+			Value: common.ImporterCertDir,
 		})
 	}
 	return env
@@ -651,16 +679,10 @@ func CreateUploadPod(client kubernetes.Interface,
 	ns := pvc.Namespace
 	commonName := name + "." + ns
 	secretName := name + "-server-tls"
-	owner := MakeOwnerReference(pvc)
-
-	_, err := keys.GetOrCreateServerKeyPairAndCert(client, ns, secretName, caKeyPair, clientCACert, commonName, name, &owner)
-	if err != nil {
-		return nil, errors.Wrap(err, "Error creating server key pair")
-	}
 
 	pod := MakeUploadPodSpec(image, verbose, pullPolicy, name, pvc, secretName)
 
-	pod, err = client.CoreV1().Pods(ns).Create(pod)
+	pod, err := client.CoreV1().Pods(ns).Create(pod)
 	if err != nil {
 		if k8serrors.IsAlreadyExists(err) {
 			pod, err = client.CoreV1().Pods(ns).Get(name, metav1.GetOptions{})
@@ -671,12 +693,23 @@ func CreateUploadPod(client kubernetes.Interface,
 			return nil, errors.Wrap(err, "upload pod API create errored")
 		}
 	}
+
+	podOwner := MakePodOwnerReference(pod)
+	_, err = keys.GetOrCreateServerKeyPairAndCert(client, ns, secretName, caKeyPair, clientCACert, commonName, name, &podOwner)
+	if err != nil {
+		// try to clean up
+		client.CoreV1().Pods(ns).Delete(pod.Name, &metav1.DeleteOptions{})
+
+		return nil, errors.Wrap(err, "Error creating server key pair")
+	}
+
 	glog.V(1).Infof("upload pod \"%s/%s\" (image: %q) created\n", pod.Namespace, pod.Name, image)
+
 	return pod, nil
 }
 
-// MakeOwnerReference makes owner reference from a PVC
-func MakeOwnerReference(pvc *v1.PersistentVolumeClaim) metav1.OwnerReference {
+// MakePVCOwnerReference makes owner reference from a PVC
+func MakePVCOwnerReference(pvc *v1.PersistentVolumeClaim) metav1.OwnerReference {
 	blockOwnerDeletion := true
 	isController := true
 	return metav1.OwnerReference{
@@ -684,6 +717,20 @@ func MakeOwnerReference(pvc *v1.PersistentVolumeClaim) metav1.OwnerReference {
 		Kind:               "PersistentVolumeClaim",
 		Name:               pvc.Name,
 		UID:                pvc.GetUID(),
+		BlockOwnerDeletion: &blockOwnerDeletion,
+		Controller:         &isController,
+	}
+}
+
+// MakePodOwnerReference makes owner reference from a Pod
+func MakePodOwnerReference(pod *v1.Pod) metav1.OwnerReference {
+	blockOwnerDeletion := true
+	isController := true
+	return metav1.OwnerReference{
+		APIVersion:         "v1",
+		Kind:               "Pod",
+		Name:               pod.Name,
+		UID:                pod.GetUID(),
 		BlockOwnerDeletion: &blockOwnerDeletion,
 		Controller:         &isController,
 	}
@@ -707,7 +754,7 @@ func MakeUploadPodSpec(image, verbose, pullPolicy, name string, pvc *v1.Persiste
 				common.UploadServerServiceLabel: name,
 			},
 			OwnerReferences: []metav1.OwnerReference{
-				MakeOwnerReference(pvc),
+				MakePVCOwnerReference(pvc),
 			},
 		},
 		Spec: v1.PodSpec{
@@ -862,7 +909,7 @@ func deletePod(req podDeleteRequest) error {
 	return err
 }
 
-func createImportEnvVar(pvc *v1.PersistentVolumeClaim, ic *ImportController) (*importPodEnvVar, error) {
+func createImportEnvVar(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim) (*importPodEnvVar, error) {
 	podEnvVar := &importPodEnvVar{}
 	podEnvVar.source = getSource(pvc)
 	podEnvVar.contentType = getContentType(pvc)
@@ -874,12 +921,16 @@ func createImportEnvVar(pvc *v1.PersistentVolumeClaim, ic *ImportController) (*i
 		if err != nil {
 			return nil, err
 		}
-		podEnvVar.secretName, err = getSecretName(ic.clientset, pvc)
+		podEnvVar.secretName, err = getSecretName(client, pvc)
 		if err != nil {
 			return nil, err
 		}
 		if podEnvVar.secretName == "" {
 			glog.V(2).Infof("no secret will be supplied to endpoint %q\n", podEnvVar.ep)
+		}
+		podEnvVar.certConfigMap, err = getCertConfigMap(client, pvc)
+		if err != nil {
+			return nil, err
 		}
 	}
 	//get the requested image size.
@@ -888,4 +939,23 @@ func createImportEnvVar(pvc *v1.PersistentVolumeClaim, ic *ImportController) (*i
 		return nil, err
 	}
 	return podEnvVar, nil
+}
+
+func getCertConfigMap(client kubernetes.Interface, pvc *v1.PersistentVolumeClaim) (string, error) {
+	value, ok := pvc.Annotations[AnnCertConfigMap]
+	if !ok || value == "" {
+		return "", nil
+	}
+
+	_, err := client.CoreV1().ConfigMaps(pvc.Namespace).Get(value, metav1.GetOptions{})
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			glog.Warningf("Configmap %s does not exist, pod will not start until it does", value)
+			return value, nil
+		}
+
+		return "", err
+	}
+
+	return value, nil
 }

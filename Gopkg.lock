@@ -231,7 +231,7 @@
   version = "v1.1.5"
 
 [[projects]]
-  digest = "1:4377ee2e755b060ce7e8e7c4bf5742a47d482fd19fe3e9534f48b93b032eefc4"
+  digest = "1:c73d289ab019f90f0e21d9c5a06fe655e2e17c7d0fac62ebf53fd1ee95ce782f"
   name = "github.com/k8snetworkplumbingwg/network-attachment-definition-client"
   packages = [
     "pkg/apis/k8s.cni.cncf.io",
@@ -241,7 +241,7 @@
     "pkg/client/clientset/versioned/typed/k8s.cni.cncf.io/v1",
   ]
   pruneopts = "T"
-  revision = "release-1.11"
+  revision = "release-1.12"
 
 [[projects]]
   branch = "master"
@@ -383,6 +383,7 @@
   packages = [
     "bpf",
     "context",
+    "context/ctxhttp",
     "http/httpguts",
     "http2",
     "http2/hpack",
@@ -398,14 +399,25 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:1748ccad64c8a1fc602f507f9c68520c8ece1cff31be9ef810c41b3715d2c8f4"
+  digest = "1:386698caf89662568c22de85c4d109cab86343f49a85a103ee64fe6e6ea8f39c"
+  name = "golang.org/x/oauth2"
+  packages = [
+    ".",
+    "internal",
+  ]
+  pruneopts = "T"
+  revision = "4b83411ed2b36bd4e3302e9b1d3c973fb1ba24db"
+
+[[projects]]
+  branch = "release-branch.go1.11"
+  digest = "1:aa85c5c8c3b9a19a3cb166ddd6b20189dad22efd36c6c03f61440f7a81aed8bd"
   name = "golang.org/x/sys"
   packages = [
     "unix",
     "windows",
   ]
   pruneopts = "T"
-  revision = "11f53e03133963fb11ae0588e08b5e0b85be8be5"
+  revision = "98c5dad5d1a0e8a73845ecc8897d0bd56586511d"
 
 [[projects]]
   digest = "1:6164911cb5e94e8d8d5131d646613ff82c14f5a8ce869de2f6d80d9889df8c5a"
@@ -438,6 +450,22 @@
   packages = ["rate"]
   pruneopts = "T"
   revision = "85acf8d2951cb2a3bde7632f9ff273ef0379bcbd"
+
+[[projects]]
+  digest = "1:1469235a5a8e192cfe6a99c4804b883a02f0ff96a693cd1660515a3a3b94d5ac"
+  name = "google.golang.org/appengine"
+  packages = [
+    "internal",
+    "internal/base",
+    "internal/datastore",
+    "internal/log",
+    "internal/remote_api",
+    "internal/urlfetch",
+    "urlfetch",
+  ]
+  pruneopts = "T"
+  revision = "e9657d882bb81064595ca3b56cbe2546bbabf7b1"
+  version = "v1.4.0"
 
 [[projects]]
   branch = "master"
@@ -519,10 +547,12 @@
     "authorization/v1beta1",
     "autoscaling/v1",
     "autoscaling/v2beta1",
+    "autoscaling/v2beta2",
     "batch/v1",
     "batch/v1beta1",
     "batch/v2alpha1",
     "certificates/v1beta1",
+    "coordination/v1beta1",
     "core/v1",
     "events/v1beta1",
     "extensions/v1beta1",
@@ -542,7 +572,7 @@
   revision = "173ce66c1e39d1d0f56e0b3347ff2988068aecd0"
 
 [[projects]]
-  digest = "1:3fe3cb0c5e5a140f0b40c18796b884d3432efbd690b0bda8cbd838d38a3ea585"
+  digest = "1:b169b2a6bd6aaf3280b9edf60fd4445b502290cefda9d2878cfe6fcc0fd280f0"
   name = "k8s.io/apiextensions-apiserver"
   packages = [
     "pkg/apis/apiextensions",
@@ -552,11 +582,11 @@
     "pkg/client/clientset/clientset/typed/apiextensions/v1beta1",
   ]
   pruneopts = "T"
-  revision = "408db4a50408e2149acbd657bceb2480c13cb0a4"
-  version = "kubernetes-1.11.2"
+  revision = "853f76028711219c2fc251fd5184f23fd44a7aa0"
+  version = "kubernetes-1.12.4"
 
 [[projects]]
-  digest = "1:e2035d60919705a125feeb8b13926383aff8817634b2c4550743c19ca21f3b08"
+  digest = "1:da452f9978850e3019edaf325ff2843eae6b84ac19d8248f97772eb7b3177448"
   name = "k8s.io/apimachinery"
   packages = [
     "pkg/api/errors",
@@ -587,6 +617,7 @@
     "pkg/util/framer",
     "pkg/util/intstr",
     "pkg/util/json",
+    "pkg/util/naming",
     "pkg/util/net",
     "pkg/util/runtime",
     "pkg/util/sets",
@@ -599,11 +630,11 @@
     "third_party/forked/golang/reflect",
   ]
   pruneopts = "T"
-  revision = "103fd098999dc9c0c88536f5c9ad2e5da39373ae"
-  version = "kubernetes-1.11.2"
+  revision = "49ce2735e5074ffc3f8190c8406cf51a96302dad"
+  version = "kubernetes-1.12.4"
 
 [[projects]]
-  digest = "1:0a19f9bf56ecc683569299c8c2282ee3ac70d4e32eeb170d3265761bff8d5e12"
+  digest = "1:c7f198a6ae760624a344214f862287207f3d985fc05bef4b1c22946db5d127ea"
   name = "k8s.io/client-go"
   packages = [
     "discovery",
@@ -620,10 +651,12 @@
     "kubernetes/typed/authorization/v1beta1",
     "kubernetes/typed/autoscaling/v1",
     "kubernetes/typed/autoscaling/v2beta1",
+    "kubernetes/typed/autoscaling/v2beta2",
     "kubernetes/typed/batch/v1",
     "kubernetes/typed/batch/v1beta1",
     "kubernetes/typed/batch/v2alpha1",
     "kubernetes/typed/certificates/v1beta1",
+    "kubernetes/typed/coordination/v1beta1",
     "kubernetes/typed/core/v1",
     "kubernetes/typed/events/v1beta1",
     "kubernetes/typed/extensions/v1beta1",
@@ -664,8 +697,8 @@
     "util/retry",
   ]
   pruneopts = "T"
-  revision = "1f13a808da65775f22cbf47862c4e5898d8f4ca1"
-  version = "kubernetes-1.11.2"
+  revision = "5e6a3d4e34f694e895b13ae728111e726a5b69df"
+  version = "kubernetes-1.12.4"
 
 [[projects]]
   branch = "master"
@@ -676,25 +709,26 @@
   revision = "ced9eb3070a5f1c548ef46e8dfe2a97c208d9f03"
 
 [[projects]]
-  digest = "1:8432e12f2287f66ff402598300e518b98a4136d15a7cfb71364ef49d2da1c2ba"
+  digest = "1:81cbfd93119a98dc20ed9d93ed2754a3b34d61835280130379ce5287e4ad1ed5"
   name = "kubevirt.io/containerized-data-importer"
   packages = [
-    "pkg/apis/datavolumecontroller",
-    "pkg/apis/datavolumecontroller/v1alpha1",
-    "pkg/apis/uploadcontroller",
-    "pkg/apis/uploadcontroller/v1alpha1",
+    "pkg/apis/core",
+    "pkg/apis/core/v1alpha1",
+    "pkg/apis/upload",
+    "pkg/apis/upload/v1alpha1",
     "pkg/client/clientset/versioned",
     "pkg/client/clientset/versioned/scheme",
-    "pkg/client/clientset/versioned/typed/datavolumecontroller/v1alpha1",
-    "pkg/client/clientset/versioned/typed/uploadcontroller/v1alpha1",
+    "pkg/client/clientset/versioned/typed/core/v1alpha1",
+    "pkg/client/clientset/versioned/typed/upload/v1alpha1",
   ]
   pruneopts = "T"
-  revision = "254749a63d335a4ec1ef919a971cab0b68cf4980"
+  revision = "3360a04ff10c310566e40ee084447a42e6daae6f"
   source = "https://github.com/kubevirt/containerized-data-importer"
+  version = "v1.5.4"
 
 [[projects]]
-  branch = "mega-merge"
-  digest = "1:8d7c87cac7bb34ef9ae3b5a607444fc2cc9f9b2b04756a8ed8d0add94ad6662a"
+  branch = "master"
+  digest = "1:53ba8dbd985e33e117224b813be641f6b867b58f6a8c960fd1cd789a974e2898"
   name = "kubevirt.io/kubevirt"
   packages = [
     "pkg/api/v1",
@@ -720,8 +754,8 @@
     "pkg/virt-launcher/virtwrap/network/dhcp",
   ]
   pruneopts = "T"
-  revision = "0364d019283267b657fe0f57c93e5698500c402c"
-  source = "github.com/stackpath/kubevirt"
+  revision = "bbc95a05a8a72dc677b5aab17decb2fce5de49d7"
+  source = "github.com/kubevirt/kubevirt"
 
 [solve-meta]
   analyzer-name = "dep"

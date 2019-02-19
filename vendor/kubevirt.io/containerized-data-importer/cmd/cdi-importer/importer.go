@@ -20,6 +20,7 @@ import (
 	"github.com/golang/glog"
 
 	"k8s.io/apimachinery/pkg/api/resource"
+	cdiv1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	"kubevirt.io/containerized-data-importer/pkg/image"
@@ -48,26 +49,35 @@ func main() {
 	source, _ := util.ParseEnvVar(common.ImporterSource, false)
 	contentType, _ := util.ParseEnvVar(common.ImporterContentType, false)
 	imageSize, _ := util.ParseEnvVar(common.ImporterImageSize, false)
+	certDir, _ := util.ParseEnvVar(common.ImporterCertDirVar, false)
+
+	//Registry import currently support only kubevirt content type
+	if contentType != string(cdiv1.DataVolumeKubeVirt) && source == controller.SourceRegistry {
+		glog.Errorf("Unsupported content type %s when importing from registry", contentType)
+		os.Exit(1)
+	}
 
 	dest := common.ImporterWritePath
-	if contentType == controller.ContentTypeArchive || source == controller.SourceRegistry {
+	if contentType == string(cdiv1.DataVolumeArchive) || source == controller.SourceRegistry {
 		dest = common.ImporterVolumePath
 	}
 
 	glog.V(1).Infoln("begin import process")
 	dso := &importer.DataStreamOptions{
-		dest,
-		ep,
-		acc,
-		sec,
-		source,
-		contentType,
-		imageSize,
+		Dest:           dest,
+		Endpoint:       ep,
+		AccessKey:      acc,
+		SecKey:         sec,
+		Source:         source,
+		ContentType:    contentType,
+		ImageSize:      imageSize,
+		AvailableSpace: util.GetAvailableSpace(common.ImporterVolumePath),
+		CertDir:        certDir,
 	}
 
-	if source == controller.SourceNone && contentType == controller.ContentTypeKubevirt {
+	if source == controller.SourceNone && contentType == string(cdiv1.DataVolumeKubeVirt) {
 		requestImageSizeQuantity := resource.MustParse(imageSize)
-		minSizeQuantity := util.MinQuantity(resource.NewScaledQuantity(util.GetAvailableSpace(common.ImporterVolumePath), 0), &requestImageSizeQuantity)
+		minSizeQuantity := util.MinQuantity(resource.NewScaledQuantity(dso.AvailableSpace, 0), &requestImageSizeQuantity)
 		if minSizeQuantity.Cmp(requestImageSizeQuantity) != 0 {
 			// Available dest space is smaller than the size we want to create
 			glog.Warningf("Available space less than requested size, creating blank image sized to available space: %s.\n", minSizeQuantity.String())

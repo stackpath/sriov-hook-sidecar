@@ -135,7 +135,7 @@ type DomainSpec struct {
 	// Clock sets the clock and timers of the vmi.
 	// +optional
 	Clock *Clock `json:"clock,omitempty"`
-	// Features like acpi, apic, hyperv.
+	// Features like acpi, apic, hyperv, smm.
 	// +optional
 	Features *Features `json:"features,omitempty"`
 	// Devices allows adding disks, network interfaces, ...
@@ -145,6 +145,31 @@ type DomainSpec struct {
 	// One of: shared, auto
 	// +optional
 	IOThreadsPolicy *IOThreadsPolicy `json:"ioThreadsPolicy,omitempty"`
+}
+
+// Represents the firmware blob used to assist in the domain creation process.
+// Used for setting the QEMU BIOS file path for the libvirt domain.
+// ---
+// +k8s:openapi-gen=true
+type Bootloader struct {
+	// If set (default), BIOS will be used.
+	// +optional
+	BIOS *BIOS `json:"bios,omitempty"`
+	// If set, EFI will be used instead of BIOS.
+	// +optional
+	EFI *EFI `json:"efi,omitempty"`
+}
+
+// If set (default), BIOS will be used.
+// ---
+// +k8s:openapi-gen=true
+type BIOS struct {
+}
+
+// If set, EFI will be used instead of BIOS.
+// ---
+// +k8s:openapi-gen=true
+type EFI struct {
 }
 
 // ---
@@ -226,6 +251,11 @@ type Firmware struct {
 	// UUID reported by the vmi bios.
 	// Defaults to a random generated uid.
 	UUID types.UID `json:"uuid,omitempty"`
+	// Settings to control the bootloader that is used.
+	// +optional
+	Bootloader *Bootloader `json:"bootloader,omitempty"`
+	// The system-serial-number in SMBIOS
+	Serial string `json:"serial,omitempty"`
 }
 
 // ---
@@ -237,6 +267,8 @@ type Devices struct {
 	Watchdog *Watchdog `json:"watchdog,omitempty"`
 	// Interfaces describe network interfaces which are added to the vmi.
 	Interfaces []Interface `json:"interfaces,omitempty"`
+	// Inputs describe input devices
+	Inputs []Input `json:"inputs,omitempty"`
 	// Whether to attach a pod network interface. Defaults to true.
 	AutoattachPodInterface *bool `json:"autoattachPodInterface,omitempty"`
 	// Whether to attach the default graphics device or not.
@@ -251,6 +283,19 @@ type Devices struct {
 	// If specified, virtual network interfaces configured with a virtio bus will also enable the vhost multiqueue feature
 	// +optional
 	NetworkInterfaceMultiQueue *bool `json:"networkInterfaceMultiqueue,omitempty"`
+}
+
+// ---
+// +k8s:openapi-gen=true
+type Input struct {
+	// Bus indicates the bus of input device to emulate.
+	// Supported values: virtio, usb.
+	Bus string `json:"bus,omitempty"`
+	// Type indicated the type of input device.
+	// Supported values: tablet.
+	Type string `json:"type"`
+	// Name is the device name
+	Name string `json:"name"`
 }
 
 // ---
@@ -639,6 +684,10 @@ type Features struct {
 	// Defaults to the machine type setting.
 	// +optional
 	Hyperv *FeatureHyperv `json:"hyperv,omitempty"`
+	// SMM enables/disables System Management Mode.
+	// TSEG not yet implemented.
+	// +optional
+	SMM *FeatureState `json:"smm,omitempty"`
 }
 
 // Represents if a feature is enabled or disabled.
@@ -830,6 +879,19 @@ type DHCPOptions struct {
 	// If specified will pass the configured NTP server to the VM via DHCP option 042.
 	// +optional
 	NTPServers []string `json:"ntpServers,omitempty"`
+	// If specified will pass extra DHCP options for private use, range: 224-254
+	// +optional
+	PrivateOptions []DHCPPrivateOptions `json:"privateOptions,omitempty"`
+}
+
+// DHCPExtraOptions defines Extra DHCP options for a VM.
+type DHCPPrivateOptions struct {
+	// Option is an Integer value from 224-254
+	// Required.
+	Option int `json:"option"`
+	// Value is a String value for the Option provided
+	// Required.
+	Value string `json:"value"`
 }
 
 // Represents the method which will be used to connect the interface to the guest.
@@ -926,9 +988,4 @@ type CniNetwork struct {
 	// specified, VMI namespace is assumed.
 	// In case of genie, it references the CNI plugin name.
 	NetworkName string `json:"networkName"`
-
-	// For Multus CNI select the default network and add it to the
-	// multus-cni.io/default-network annotation. Ignored for all
-	// other CNIs.
-	Default bool `json:"default,omitempty"`
 }

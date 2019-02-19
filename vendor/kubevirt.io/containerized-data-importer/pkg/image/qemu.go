@@ -32,6 +32,8 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/system"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 
+	dto "github.com/prometheus/client_model/go"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
@@ -61,7 +63,7 @@ type QEMUOperations interface {
 	ConvertQcow2ToRawStream(*url.URL, string) error
 	Resize(string, resource.Quantity) error
 	Info(string) (*ImgInfo, error)
-	Validate(string, string) error
+	Validate(string, string, int64) error
 	CreateBlankImage(dest string, size resource.Quantity) error
 }
 
@@ -147,7 +149,7 @@ func (o *qemuOperations) Info(image string) (*ImgInfo, error) {
 	return &info, nil
 }
 
-func (o *qemuOperations) Validate(image, format string) error {
+func (o *qemuOperations) Validate(image, format string, availableSize int64) error {
 	info, err := o.Info(image)
 	if err != nil {
 		return err
@@ -161,6 +163,9 @@ func (o *qemuOperations) Validate(image, format string) error {
 		return errors.Errorf("Image %s is invalid because it has backing file %s", image, info.BackingFile)
 	}
 
+	if availableSize < info.VirtualSize {
+		return errors.Errorf("Virtual image size %d is larger than available size %d, shrink not yet supported.", info.VirtualSize, availableSize)
+	}
 	return nil
 }
 
@@ -176,8 +181,8 @@ func ConvertQcow2ToRawStream(url *url.URL, dest string) error {
 }
 
 // Validate does basic validation of a qemu image
-func Validate(image, format string) error {
-	return qemuIterface.Validate(image, format)
+func Validate(image, format string, availableSize int64) error {
+	return qemuIterface.Validate(image, format, availableSize)
 }
 
 func reportProgress(line string) {
@@ -187,7 +192,11 @@ func reportProgress(line string) {
 		glog.V(1).Info(matches[1])
 		// Don't need to check for an error, the regex made sure its a number we can parse.
 		v, _ := strconv.ParseFloat(matches[1], 64)
-		progress.WithLabelValues(ownerUID).Set(v)
+		metric := &dto.Metric{}
+		progress.WithLabelValues(ownerUID).Write(metric)
+		if v > 0 && v > *metric.Counter.Value {
+			progress.WithLabelValues(ownerUID).Add(v - *metric.Counter.Value)
+		}
 	}
 }
 

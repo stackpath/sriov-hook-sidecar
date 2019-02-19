@@ -18,7 +18,6 @@ import (
 	"github.com/pkg/errors"
 
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // CountingReader is a reader that keeps track of how much has been read
@@ -49,7 +48,7 @@ func getNamespace(path string) string {
 			return ns
 		}
 	}
-	return v1.NamespaceSystem
+	return "cdi"
 }
 
 // ParseEnvVar provides a wrapper to attempt to fetch the specified env var
@@ -96,8 +95,15 @@ func MinQuantity(availableSpace, imageSize *resource.Quantity) resource.Quantity
 // using the specified io.Reader to the specified destination.
 func UnArchiveTar(reader io.Reader, destDir string, arg ...string) error {
 	glog.V(1).Infof("begin untar...\n")
-	args := fmt.Sprintf("-%s%s", strings.Join(arg, ""), "xvC")
-	untar := exec.Command("/usr/bin/tar", args, destDir)
+
+	var tarOptions string
+	var args = arg
+	if len(arg) > 0 {
+		tarOptions = arg[0]
+		args = arg[1:]
+	}
+	options := fmt.Sprintf("-%s%s", tarOptions, "xvC")
+	untar := exec.Command("/usr/bin/tar", options, destDir, strings.Join(args, ""))
 	untar.Stdin = reader
 	var errBuf bytes.Buffer
 	untar.Stderr = &errBuf

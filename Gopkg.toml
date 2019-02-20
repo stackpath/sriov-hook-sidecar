@@ -10,8 +10,8 @@ ignored = [
 
 [[override]]
   name = "kubevirt.io/kubevirt"
-  source = "github.com/kubevirt/kubevirt"
-  branch = "master"
+  source = "github.com/stackpath/kubevirt"
+  branch = "multus-default-annotation2"
 
 [[override]]
    name = "kubevirt.io/containerized-data-importer"

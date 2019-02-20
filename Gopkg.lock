@@ -727,8 +727,8 @@
   version = "v1.5.4"
 
 [[projects]]
-  branch = "master"
-  digest = "1:53ba8dbd985e33e117224b813be641f6b867b58f6a8c960fd1cd789a974e2898"
+  branch = "multus-default-annotation2"
+  digest = "1:422cb62cf5741668d8ed3de78d133d422093ca073dd888dea6943daa40528724"
   name = "kubevirt.io/kubevirt"
   packages = [
     "pkg/api/v1",
@@ -754,8 +754,8 @@
     "pkg/virt-launcher/virtwrap/network/dhcp",
   ]
   pruneopts = "T"
-  revision = "bbc95a05a8a72dc677b5aab17decb2fce5de49d7"
-  source = "github.com/kubevirt/kubevirt"
+  revision = "50c594ab75dad50045ca7595dbeae74fa67ef85c"
+  source = "github.com/stackpath/kubevirt"
 
 [solve-meta]
   analyzer-name = "dep"

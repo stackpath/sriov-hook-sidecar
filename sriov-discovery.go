@@ -41,6 +41,25 @@ import (
 	"kubevirt.io/kubevirt/pkg/virt-launcher/virtwrap/network"
 )
 
+// CloudInitSubnetRoute is a representation of cloud-init nework config v2
+// Route objects
+type CloudInitSubnetRoute struct {
+	Network string `yaml:"network,omitempty"`
+	Netmask string `yaml:"netmask,omitempty"`
+	Gateway string `yaml:"gateway,omitempty"`
+}
+
+// CloudInitSubnet is a representation of a cloud-init nework config v2
+// subnet object
+type CloudInitSubnet struct {
+	SubnetType string                 `yaml:"type,omitempty"`
+	Address    string                 `yaml:"address,omitempty"`
+	Gateway    string                 `yaml:"gateway,omitempty"`
+	Routes     []CloudInitSubnetRoute `yaml:"routes,omitempty"`
+}
+
+// CloudInitNetworkInterface is a representation of a cloud-init nework config v2
+// network interface
 type CloudInitNetworkInterface struct {
 	NetworkType string            `yaml:"type"`
 	Name        string            `yaml:"name,omitempty"`
@@ -54,29 +73,21 @@ type CloudInitNetworkInterface struct {
 	Metric      int               `yaml:"metric,omitempty"`
 }
 
-type CloudInitSubnet struct {
-	SubnetType string                 `yaml:"type,omitempty"`
-	Address    string                 `yaml:"address,omitempty"`
-	Gateway    string                 `yaml:"gateway,omitempty"`
-	Routes     []CloudInitSubnetRoute `yaml:"routes,omitempty"`
-}
-
-type CloudInitSubnetRoute struct {
-	Network string `yaml:"network,omitempty"`
-	Netmask string `yaml:"netmask,omitempty"`
-	Gateway string `yaml:"gateway,omitempty"`
-}
-
+// CloudInitNetConfig is a representation of a cloud-init nework config v2
 type CloudInitNetConfig struct {
 	Version int                         `yaml:"version"`
 	Config  []CloudInitNetworkInterface `yaml:"config"`
 }
 
+// CloudInitManageResolv is a representation of a cloud-init
+// manage_resolv_conf object
 type CloudInitManageResolv struct {
 	ManageResolv bool                `yaml:"manage_resolv_conf,omitempty"`
 	ResolvConf   CloudInitResolvConf `yaml:"resolv_conf,omitempty"`
 }
 
+// CloudInitResolvConf is a representation of a cloud-init
+// resolver configuration object
 type CloudInitResolvConf struct {
 	NameServers   []string `yaml:"nameservers,omitempty"`
 	SearchDomains []string `yaml:"searchdomains,omitempty"`

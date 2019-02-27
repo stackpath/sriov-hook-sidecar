@@ -49,7 +49,7 @@ func (s infoServer) Info(ctx context.Context, params *hooksInfo.InfoParams) (*ho
 			hooksV1alpha2.Version,
 		},
 		HookPoints: []*hooksInfo.HookPoint{
-			&hooksInfo.HookPoint{
+			{
 				Name:     hooksInfo.PreCloudInitIsoHookPointName,
 				Priority: 0,
 			},
@@ -59,9 +59,7 @@ func (s infoServer) Info(ctx context.Context, params *hooksInfo.InfoParams) (*ho
 
 type v1alpha2Server struct{}
 
-func (s v1alpha2Server) PreCloudInitIso(ctx context.Context, params *hooksV1alpha2.PreCloudInitIsoParams) (*hooksV1alpha2.PreCloudInitIsoResult, error) {
-	log.Log.Info("Hook's PreCloudInitIso callback method has been called")
-
+func getCloudInitData(params *hooksV1alpha2.PreCloudInitIsoParams) (*v1.CloudInitNoCloudSource, *v1.VirtualMachineInstance) {
 	vmiJSON := params.GetVmi()
 	vmi := v1.VirtualMachineInstance{}
 	err := json.Unmarshal(vmiJSON, &vmi)
@@ -77,39 +75,30 @@ func (s v1alpha2Server) PreCloudInitIso(ctx context.Context, params *hooksV1alph
 		log.Log.Reason(err).Errorf("Failed to unmarshal given CloudInitNoCloudSource: %s", cloudInitDataJSON)
 		panic(err)
 	}
+	return &cloudInitData, &vmi
+}
 
-	if cloudInitData.NetworkData != "" || cloudInitData.NetworkDataBase64 != "" || cloudInitData.NetworkDataSecretRef != nil {
-		log.Log.Warning("Skipping SR-IOV network discovery: cloud-init networkData is already defined")
-		return &hooksV1alpha2.PreCloudInitIsoResult{
-			CloudInitData: params.GetCloudInitData(),
-		}, nil
-	}
-
-	networkData, resolvData, err := cloudInitDiscoverNetworkData(&vmi)
-	if err != nil {
-		log.Log.Reason(err).Errorf("cloudInitDiscoverNetworkData Failed")
-		panic(err)
-	}
-
+func setUserData(cloudInitData *v1.CloudInitNoCloudSource) ([]byte, error) {
 	var userData []byte
 	if cloudInitData.UserData != "" {
 		log.Log.V(2).Info("Found UserData")
 		userData = []byte(cloudInitData.UserData)
 	} else if cloudInitData.UserDataBase64 != "" {
 		log.Log.V(2).Info("Found UserDataBase64")
-		userData, err = base64.StdEncoding.DecodeString(cloudInitData.UserDataBase64)
+		userData, err := base64.StdEncoding.DecodeString(cloudInitData.UserDataBase64)
 		if err != nil {
-			return &hooksV1alpha2.PreCloudInitIsoResult{
-				CloudInitData: params.GetCloudInitData(),
-			}, fmt.Errorf("Failed to base64 decode UserDataBase64: %v", err)
+			return userData, err
 		}
 	}
-
 	if len(userData) == 0 {
 		log.Log.V(2).Info("no userData found: adding #cloud-config header")
 		userData = []byte("#cloud-config\n")
+		return userData, nil
 	}
+	return userData, nil
+}
 
+func setResolvData(resolvData, userData []byte) []byte {
 	if len(resolvData) > 0 {
 		log.Log.V(2).Info("attempting to append resolvData to userData")
 		if strings.HasPrefix(string(userData), "#cloud-config") {
@@ -125,6 +114,37 @@ func (s v1alpha2Server) PreCloudInitIso(ctx context.Context, params *hooksV1alph
 			log.Log.V(2).Info("skipping append: #cloud-config header not in userData ")
 		}
 	}
+	return userData
+}
+
+func (s v1alpha2Server) PreCloudInitIso(ctx context.Context, params *hooksV1alpha2.PreCloudInitIsoParams) (*hooksV1alpha2.PreCloudInitIsoResult, error) {
+	log.Log.Info("Hook's PreCloudInitIso callback method has been called")
+
+	var cloudInitData *v1.CloudInitNoCloudSource
+	var vmi *v1.VirtualMachineInstance
+	cloudInitData, vmi = getCloudInitData(params)
+
+	if cloudInitData.NetworkData != "" || cloudInitData.NetworkDataBase64 != "" || cloudInitData.NetworkDataSecretRef != nil {
+		log.Log.Warning("Skipping SR-IOV network discovery: cloud-init networkData is already defined")
+		return &hooksV1alpha2.PreCloudInitIsoResult{
+			CloudInitData: params.GetCloudInitData(),
+		}, nil
+	}
+
+	networkData, resolvData, err := cloudInitDiscoverNetworkData(vmi)
+	if err != nil {
+		log.Log.Reason(err).Errorf("cloudInitDiscoverNetworkData Failed")
+		panic(err)
+	}
+
+	userData, err := setUserData(cloudInitData)
+	if err != nil {
+		return &hooksV1alpha2.PreCloudInitIsoResult{
+			CloudInitData: params.GetCloudInitData(),
+		}, err
+	}
+
+	userData = setResolvData(resolvData, userData)
 
 	cloudInitData.UserDataBase64 = base64.StdEncoding.EncodeToString([]byte(userData))
 	cloudInitData.NetworkDataBase64 = base64.StdEncoding.EncodeToString([]byte(networkData))

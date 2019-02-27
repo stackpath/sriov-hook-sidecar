@@ -99,12 +99,10 @@ var disableResolv bool
 var getResolvConfDetailsFromPod = api.GetResolvConfDetailsFromPod
 
 // Inspired by Convert_v1_VirtualMachine_To_api_Domain
-func getSriovNetworkInfo(vmi *v1.VirtualMachineInstance) ([]network.VIF, error) {
-	disableResolv = false
+func setNetworkInfo(vmi *v1.VirtualMachineInstance) (map[string]*v1.Network, map[string]int) {
 	networks := map[string]*v1.Network{}
 	cniNetworks := map[string]int{}
 	multusNetworkIndex := 1
-	var sriovVifs []network.VIF
 
 	for _, vmiNetwork := range vmi.Spec.Networks {
 		if vmiNetwork.Multus != nil {
@@ -121,6 +119,13 @@ func getSriovNetworkInfo(vmi *v1.VirtualMachineInstance) ([]network.VIF, error) 
 		}
 		networks[vmiNetwork.Name] = vmiNetwork.DeepCopy()
 	}
+	return networks, cniNetworks
+}
+
+func getSriovNetworkInfo(vmi *v1.VirtualMachineInstance) ([]network.VIF, error) {
+	var sriovVifs []network.VIF
+
+	networks, cniNetworks := setNetworkInfo(vmi)
 
 	for _, iface := range vmi.Spec.Domain.Devices.Interfaces {
 		net, isExist := networks[iface.Name]

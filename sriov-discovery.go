@@ -95,6 +95,10 @@ type CloudInitResolvConf struct {
 	// TODO Add options map when pkg/util/net/dns can parse them
 }
 
+const (
+	anycastAnnotation = "anycast.platform.stackpath.net/subnets"
+)
+
 var disableResolv bool
 var getResolvConfDetailsFromPod = api.GetResolvConfDetailsFromPod
 
@@ -295,6 +299,29 @@ func convertCloudInitNetworksToCloudInitNetConfig(cloudInitNetworks *[]network.V
 	}
 }
 
+func addAnycastSubnets(vmi *v1.VirtualMachineInstance, config *CloudInitNetConfig) {
+	vmiAnycastSubnets, ok := vmi.Annotations[anycastAnnotation]
+	if !ok {
+		return
+	}
+
+	var nif CloudInitNetworkInterface
+	var nifSubnet CloudInitSubnet
+
+	nif.Name = "lo"
+	nif.MacAddress = "00:00:00:00:00:00"
+	nif.NetworkType = "physical"
+	nifSubnet.SubnetType = "static"
+	nifSubnet.Address = "127.0.0.1/8"
+	nif.Subnets = append(nif.Subnets, nifSubnet)
+	anycastSubnets := strings.Split(vmiAnycastSubnets, ",")
+	for _, subnet := range anycastSubnets {
+		nif.Subnets = append(nif.Subnets, CloudInitSubnet{SubnetType: "static", Address: subnet})
+	}
+
+	config.Config = append(config.Config, nif)
+}
+
 func cloudInitDiscoverNetworkData(vmi *v1.VirtualMachineInstance) ([]byte, []byte, error) {
 	var networkFile []byte
 	var resolvFile []byte
@@ -314,6 +341,7 @@ func cloudInitDiscoverNetworkData(vmi *v1.VirtualMachineInstance) ([]byte, []byt
 	}
 
 	convertCloudInitNetworksToCloudInitNetConfig(&cloudInitNetworks, &config)
+	addAnycastSubnets(vmi, &config)
 
 	networkFile, err = yaml.Marshal(config)
 	if err != nil {

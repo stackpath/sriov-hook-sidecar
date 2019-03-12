@@ -41,7 +41,7 @@ import (
 	"kubevirt.io/kubevirt/pkg/virt-launcher/virtwrap/network"
 )
 
-// CloudInitSubnetRoute is a representation of cloud-init nework config v2
+// CloudInitSubnetRoute is a representation of cloud-init nework config v1
 // Route objects
 type CloudInitSubnetRoute struct {
 	Network string `yaml:"network,omitempty"`
@@ -49,7 +49,7 @@ type CloudInitSubnetRoute struct {
 	Gateway string `yaml:"gateway,omitempty"`
 }
 
-// CloudInitSubnet is a representation of a cloud-init nework config v2
+// CloudInitSubnet is a representation of a cloud-init nework config v1
 // subnet object
 type CloudInitSubnet struct {
 	SubnetType string                 `yaml:"type,omitempty"`
@@ -58,7 +58,7 @@ type CloudInitSubnet struct {
 	Routes     []CloudInitSubnetRoute `yaml:"routes,omitempty"`
 }
 
-// CloudInitNetworkInterface is a representation of a cloud-init nework config v2
+// CloudInitNetworkInterface is a representation of a cloud-init nework config v1
 // network interface
 type CloudInitNetworkInterface struct {
 	NetworkType string            `yaml:"type"`
@@ -73,7 +73,7 @@ type CloudInitNetworkInterface struct {
 	Metric      int               `yaml:"metric,omitempty"`
 }
 
-// CloudInitNetConfig is a representation of a cloud-init nework config v2
+// CloudInitNetConfig is a representation of a cloud-init nework config v1
 type CloudInitNetConfig struct {
 	Version int                         `yaml:"version"`
 	Config  []CloudInitNetworkInterface `yaml:"config"`

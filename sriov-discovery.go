@@ -306,14 +306,10 @@ func addAnycastSubnets(vmi *v1.VirtualMachineInstance, config *CloudInitNetConfi
 	}
 
 	var nif CloudInitNetworkInterface
-	var nifSubnet CloudInitSubnet
 
-	nif.Name = "lo"
+	nif.Name = "lo:1"
 	nif.MacAddress = "00:00:00:00:00:00"
 	nif.NetworkType = "physical"
-	nifSubnet.SubnetType = "static"
-	nifSubnet.Address = "127.0.0.1/8"
-	nif.Subnets = append(nif.Subnets, nifSubnet)
 	anycastSubnets := strings.Split(vmiAnycastSubnets, ",")
 	for _, subnet := range anycastSubnets {
 		nif.Subnets = append(nif.Subnets, CloudInitSubnet{SubnetType: "static", Address: subnet})

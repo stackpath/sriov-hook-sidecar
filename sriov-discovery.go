@@ -216,6 +216,11 @@ func getNetworkDetails(intName string) (network.VIF, error) {
 
 	vif.Mtu = uint16(link.Attrs().MTU)
 
+	// Set ip for hosts file
+	if intName == "eth0" {
+		HostsIpAddress = strings.Split(strings.Split(vif.IP.String(), " ")[0], "/")[0]
+	}
+
 	return vif, nil
 }
 

@@ -38,6 +38,8 @@ import (
 	"kubevirt.io/kubevirt/pkg/log"
 )
 
+var HostsIpAddress string
+
 type infoServer struct{}
 
 func (s infoServer) Info(ctx context.Context, params *hooksInfo.InfoParams) (*hooksInfo.InfoResult, error) {
@@ -98,7 +100,7 @@ func setUserData(cloudInitData *v1.CloudInitNoCloudSource) ([]byte, error) {
 	return userData, nil
 }
 
-func setResolvData(resolvData, userData []byte) []byte {
+func setAdditionalData(hostname string, resolvData, userData []byte) []byte {
 	if len(resolvData) > 0 {
 		log.Log.V(2).Info("attempting to append resolvData to userData")
 		if strings.HasPrefix(string(userData), "#cloud-config") {
@@ -111,9 +113,21 @@ func setResolvData(resolvData, userData []byte) []byte {
 				userData = append(userData, resolvData...)
 			}
 		} else {
-			log.Log.V(2).Info("skipping append: #cloud-config header not in userData ")
+			log.Log.V(2).Info("skipping append for resolvData: #cloud-config header not in userData ")
 		}
 	}
+
+	if len(HostsIpAddress) > 0 {
+		log.Log.V(2).Info("Attemping to append bootcmd for /etc/hosts to userData")
+		if strings.HasPrefix(string(userData), "#cloud-config") {
+			log.Log.V(2).Info("Appending bootcmd for /etc/hosts to userData")
+			bootStr := "bootcmd:\n  - cloud-init-per once etcHosts sh -c \"echo " + HostsIpAddress + " " + hostname + " >> /etc/hosts\"\n"
+			userData = append(userData, []byte(bootStr)...)
+		} else {
+			log.Log.V(2).Info("skipping append for bootcmd: #cloud-config header not in userData ")
+		}
+	}
+
 	return userData
 }
 
@@ -144,7 +158,7 @@ func (s v1alpha2Server) PreCloudInitIso(ctx context.Context, params *hooksV1alph
 		}, err
 	}
 
-	userData = setResolvData(resolvData, userData)
+	userData = setAdditionalData(vmi.Spec.Hostname, resolvData, userData)
 
 	cloudInitData.UserDataBase64 = base64.StdEncoding.EncodeToString([]byte(userData))
 	cloudInitData.NetworkDataBase64 = base64.StdEncoding.EncodeToString([]byte(networkData))

@@ -121,7 +121,7 @@ func setAdditionalData(hostname string, resolvData, userData []byte) []byte {
 		log.Log.V(2).Info("Attemping to append bootcmd for /etc/hosts to userData")
 		if strings.HasPrefix(string(userData), "#cloud-config") {
 			log.Log.V(2).Info("Appending bootcmd for /etc/hosts to userData")
-			bootStr := "bootcmd:\n  - cloud-init-per instance etcHosts sh -c \"echo " + HostsIpAddress + " " + hostname + " >> /etc/hosts\"\n"
+			bootStr := "bootcmd:\n  - cloud-init-per once etcHosts sh -c \"echo " + HostsIpAddress + " " + hostname + " >> /etc/hosts\"\n"
 			userData = append(userData, []byte(bootStr)...)
 		} else {
 			log.Log.V(2).Info("skipping append for bootcmd: #cloud-config header not in userData ")
